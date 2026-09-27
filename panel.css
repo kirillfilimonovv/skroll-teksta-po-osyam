@@ -1,0 +1,900 @@
+/* © Сергей Гуров · Михаил Матвеев · Александр Копинов, 2026 · панель стендов · метод «Основа» · stendy.vercel.app */
+/* ────────────────────────────────────────────────────────────────────
+   Панель стенда — единая дизайн-система (стиль Apple HIG, тёмное стекло)
+   Подключение в стенде:
+     <link rel="stylesheet" href="/panel.css">
+     <script src="/panel.js"></script>
+     StendPanel.build({ defs, desc, params, defaults, eases, evalEase,
+                        bezApprox, storageKey })
+   Компоненты: .st-gear (кнопка), .st-panel (панель), h4 (заголовок секции),
+   .card (карточка секции), .row (строка), .val (значение), select, range,
+   .curve (редактор безье), .st-reset (кнопка сброса), .st-tip (подсказка)
+   ──────────────────────────────────────────────────────────────────── */
+
+/* Значения темы «Эпл» сверены с системными Apple (тёмный режим) по
+   приёмке HIG 02.09.2026 (ревьюер dickwu/apple-design-skill, токены
+   axiaoge2/apple-hig-designer, толщины материалов cmurphy1140):
+   вторичный текст — secondary label rgba(235,235,245,.6); разделитель —
+   separator rgba(84,84,88,.6); стекло — material regular (плотность
+   .6–.8, размытие 20–40, насыщенность 1.2–1.5); кегли 13/12/11 =
+   footnote/caption1/caption2, ниже 11 нет; цель ≥ 20 pt на десктопе;
+   фокус — кольцо акцента. Разбор: хранилище, «Библиотека панелей/
+   Разборы чужих работ/Apple-репозитории с GitHub — разбор». */
+:root {
+  --st-accent: #0A84FF;                 /* системный синий Apple */
+  --st-glass: rgba(24, 24, 26, .72);    /* стекло панели */
+  --st-glass-2: rgba(40, 40, 42, .85);  /* стекло подсказки */
+  --st-card: rgba(255, 255, 255, .05);  /* карточка секции */
+  --st-hairline: rgba(84, 84, 88, .6);     /* волосяной разделитель — separator Apple */
+  --st-border: rgba(255, 255, 255, .12);
+  --st-text: rgba(255, 255, 255, .92);
+  --st-text-2: rgba(235, 235, 245, .6);  /* secondary label Apple; было .5 — над белым 3.1:1 */
+  --st-text-3: rgba(235, 235, 245, .6);  /* заголовок секции: у Apple secondary; tertiary .3 — только неактивное */
+  --st-track: rgba(255, 255, 255, .22);
+  /* ПИЛЮЛЯ-ШАЙБА тёмная (правка Сергея 03.09): ручка не должна быть светлее
+     панели — светлое пятно на нитке читалось как подсветка, а не как то,
+     за что берутся. Держится на волосяной кромке, число светлое. */
+  --st-shayba: #3A3A3C;                 /* control Apple на тёмном */
+  --st-shayba-text: rgba(255, 255, 255, .92);
+  --st-shayba-kromka: rgba(255, 255, 255, .18);
+  --st-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, sans-serif;
+  --st-radius: 16px;
+  --st-radius-card: 12px;
+  --st-blur: blur(28px) saturate(1.4);   /* regular: 20–40 / 1.2–1.5; одно стекло на панель, шестерёнку, подсказку */
+  /* ЭТАЖ ПАНЕЛИ. Инструмент обязан лежать поверх любого слоя стенда: слои
+     стенда — это его материал, а панель и указка смотрят на материал
+     сверху. Числами тут не выиграть — стенд волен поставить занавес на
+     любой высоте, — поэтому этаж взят у потолка (максимум z-index
+     2147483647) и назван один раз. Указка на этаж ниже панели, подсказка
+     на этаж выше. Стенду, которому нужен свой порядок, достаточно
+     переопределить --st-z. Служебная геометрия. */
+  --st-z: 2147483000;
+}
+/* ПЛОТНОСТЬ СТЕКЛА — ЗАКОН. Стекло смотрит на светлоту страницы под собой
+   и отвечает плотностью: над тёмной .72 (regular), над светлой .88 — иначе
+   вторичный текст падает до 3.1:1 при пороге 4.5 (посчитано 02.09: белая
+   страница, стекло .72). Класс ставит panel.js по фону body; на узком
+   экране лист и так .95. Служебное, без ручки. */
+.st-nad-svetlym { --st-glass: rgba(24, 24, 26, .88); --st-glass-2: rgba(40, 40, 42, .94);
+  /* полоса прокрутки вынесена наружу и лежит на фоне стенда: над светлой
+     страницей белая пропадала, поэтому цвет её — тоже закон от светлоты */
+  --st-skroll: rgba(0, 0, 0, .1); --st-skroll-b: rgba(0, 0, 0, .32); }
+
+/* ── Кнопка-шестерёнка (левый нижний угол) ── */
+.st-gear {
+  position: fixed; left: 12px; bottom: 12px; z-index: var(--st-z);
+  width: 36px; height: 36px; border-radius: 50%; padding: 0;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--st-glass);
+  -webkit-backdrop-filter: var(--st-blur);
+  backdrop-filter: var(--st-blur);
+  border: 0.5px solid var(--st-border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .4);
+  cursor: pointer;
+  transition: transform .15s ease, background .15s ease;
+}
+.st-gear:hover { background: rgba(44, 44, 46, .75); }
+.st-gear:active { transform: scale(.92); }
+.st-gear svg { width: 16px; height: 16px; display: block; }
+
+/* ── Панель ── */
+/* ПАНЕЛЬ ЗАКРЫВАЕТСЯ (правка Сергея 03.09). Она объявлена display: flex —
+   и авторское объявление перебивает display: none, который браузер даёт
+   атрибуту hidden. Панель не скрывалась вовсе: hidden ставился, а окно
+   оставалось на экране. Ход 31 переписал панель на колонку-раму, тогда и
+   сломалось. Правило ниже возвращает hidden силу: селектор с атрибутом
+   весомее голого класса, поэтому порядок строк тут ни при чём. */
+.st-panel[hidden] { display: none; }
+.st-panel {
+  position: fixed; left: 12px; bottom: 58px; z-index: var(--st-z); width: 324px;
+  /* Скролл живёт в теле, не в панели: полоса прокрутки вынесена НАРУЖУ
+     (правка Сергея 03.09), а внутри панели она съедала правую колонку и
+     ломала симметрию. Панель — рама: держит стекло, радиус и своё поле. */
+  display: flex; flex-direction: column;
+  max-height: calc(100dvh - 74px); overflow: visible;
+  --st-pole: 10px;             /* поле панели — опора раскладки, рисунок 03.09 */
+  background: var(--st-glass);
+  -webkit-backdrop-filter: var(--st-blur);
+  backdrop-filter: var(--st-blur);
+  border: 0.5px solid var(--st-border);
+  border-radius: var(--st-radius);
+  box-shadow: 0 24px 70px rgba(0, 0, 0, .55), 0 2px 12px rgba(0, 0, 0, .35);
+  /* Раскладка по рисунку Сергея в Figma (03.09): у панели внешнее поле 10,
+     полоса состояния лежит во всю ширину этого поля, кластеры (заголовки,
+     карточки, кнопки) уже её ещё на 14 с каждой стороны — 324 → 304 → 276. */
+  padding: 0;
+  color: #fff;
+  font: 13px/1.35 var(--st-font);
+  /* окно тянется своей невидимой кромкой (st-tyaga): системный уголок
+     рисовал в правом нижнем углу засечку — Сергей снял её 03.09 */
+  min-width: 280px; min-height: 180px;
+  transform-origin: bottom left;
+  animation: st-panel-in .28s cubic-bezier(.32, .72, 0, 1);
+}
+@keyframes st-panel-in {
+  /* прозрачность не анимируем: непроигранная анимация оставляла панель
+     невидимой (поймано 2026-08-24 на headless-снимке — opacity застревал в 0) */
+  from { transform: scale(.94) translateY(6px); }
+}
+/* ── ТЕЛО: единственное, что прокручивается ──
+   Родная полоса скрыта: она лежала внутри панели, отъедала правую колонку
+   и рвала рифмовку вертикалей. Вместо неё — своя, снаружи справа. */
+.st-telo {
+  flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden;
+  padding: var(--st-pole) var(--st-pole) 22px;
+  border-radius: inherit;
+  scrollbar-width: none; -ms-overflow-style: none;
+}
+.st-telo::-webkit-scrollbar { width: 0; height: 0; display: none; }
+
+/* ── ПОЛОСА ПРОКРУТКИ СНАРУЖИ (рука Сергея 03.09) ──
+   Стоит справа за кромкой панели, начинается на 10 ниже верха — там, где
+   кончается закругление правого верхнего угла, — и на столько же не
+   доходит до низа. Ширина 3.5: тридцатью процентами уже прежних пяти. */
+.st-panel .st-skroll {
+  position: absolute; left: 100%; margin-left: 6px;
+  top: var(--st-pole); bottom: var(--st-pole); width: 3.5px;
+  border-radius: 2px; background: var(--st-skroll, rgba(255, 255, 255, .1));
+  /* видна всегда, вполсилы: полоса — часть рамы, а не всплывающая подсказка;
+     под курсором панели набирает полный цвет */
+  opacity: .55; transition: opacity .18s ease;
+}
+.st-panel .st-skroll.sleva { left: auto; right: 100%; margin-left: 0; margin-right: 6px; }
+.st-panel:hover .st-skroll, .st-panel .st-skroll.zhivaya { opacity: 1; }
+.st-panel .st-skroll[hidden] { display: none; }
+.st-panel .st-skroll-b {
+  position: absolute; left: 0; width: 100%; min-height: 24px;
+  border-radius: 2px; background: var(--st-skroll-b, rgba(255, 255, 255, .35)); cursor: grab;
+}
+.st-panel .st-skroll-b:hover { filter: brightness(1.4); }
+.st-panel .st-skroll-b.tyanem { filter: brightness(1.6); cursor: grabbing; }
+/* невидимая кромка размера: функция окна осталась, засечка ушла */
+.st-panel .st-tyaga {
+  position: absolute; right: 0; bottom: 0; width: 18px; height: 18px;
+  cursor: nwse-resize; z-index: 4;
+}
+
+/* ── ЗАЩИТА ЗНАЧКОВ ОТ СТИЛЕЙ СТЕНДА ─────────────────────────────────
+   Стенды пишут глобальные правила для своей графики — «svg{position:
+   absolute;inset:0;width:100%}» на пробе траектории превратило схват и
+   шеврон в чёрные пятна на весь заголовок. Панель живёт внутри чужого
+   документа и обязана держать свои значки сама: раскладка своя, размеры
+   задаются рядом. Слой правки на макете лежит вне .st-panel, его это
+   правило не касается (правка 03.09). */
+.st-panel svg { position: static; inset: auto; max-width: none; }
+
+/* ── ПОЛЕ ВВОДА — ОДИН БЛОК НА ВСЮ ПАНЕЛЬ (Г5, Г8, Г9) ───────────────
+   Полей развелось четыре вида с разной высотой и разным поведением: поле
+   кегля 25, поле траектории 22, поля пары и коридора со своими рамками.
+   Сергей 03.09: «поля не по гайдлайнам, невысокие, и при клике выбирается
+   не поле, а фрагмент». Один блок: высота 24 (цель клика и место под
+   подпись внутри), скругление 6, поля по горизонтали 8, подпись внутри
+   слева заглавной вторичным цветом (Г5), число справа. Нажатие в любое
+   место блока ставит курсор в поле и выделяет число целиком — правят его
+   всё, а не букву в середине. */
+.st-panel .st-pole-blok {
+  flex: 1 1 0; min-width: 0; box-sizing: border-box;
+  display: flex; align-items: center; gap: 6px; height: 24px; padding: 0 8px;
+  border-radius: 6px; background: rgba(120, 120, 128, .22);
+  box-shadow: inset 0 0 0 .5px var(--st-hairline);
+  cursor: text;
+}
+.st-panel .st-pole-blok:focus-within { box-shadow: inset 0 0 0 1px var(--st-accent); }
+.st-panel .st-pole-blok.oshibka { box-shadow: inset 0 0 0 1px #FF453A; }
+.st-panel .st-pole-blok > i {
+  flex: none; font: 10px/1 var(--st-font); font-style: normal; color: var(--st-text-2);
+  text-transform: uppercase; user-select: none;
+}
+.st-panel .st-pole-blok > input {
+  flex: 1 1 auto; min-width: 0; width: 100%; box-sizing: border-box;
+  background: transparent; border: 0; outline: none; padding: 0;
+  color: var(--st-text); font: 11px var(--st-font); text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.st-panel .st-pole-blok > input.oshibka { color: #FF453A; }
+/* ряд полей: по 2 px одной группой — пробелы с макета Сергея (П16) */
+.st-panel .st-polya-ryad { display: flex; gap: 2px; width: 100%; align-items: flex-end; }
+/* ── ПОДПИСЬ СНАРУЖИ СВЕРХУ (второе положение блока, 04.09) ──────────
+   Г5 велит подпись внутри поля, и для ряда x/y/r это верно: снаружи она
+   рвёт ряд и съедает ширину. Но у коридора и пары эталон Сергея кладёт её
+   НАД полем («от» / «до» у коридора кегля) — там подпись читается как
+   заголовок пары, а не как единица величины. Оба положения законны, и
+   блок обязан уметь оба: система впереди органа. Иначе орган рисует своё
+   поле — ровно то, за что Г9 и ругает (улов линтера 04.09: fazy, koridor,
+   para). */
+.st-panel .st-pole-stolb { display: flex; flex-direction: column; gap: 3px; flex: 1 1 0; min-width: 0; }
+.st-panel .st-pole-stolb > label,
+.st-panel .st-pole-stolb > span.st-pole-nad {
+  display: block; font: 500 11px/1.4 var(--st-font); color: var(--st-text-2);
+  cursor: inherit; flex: none;
+}
+.st-panel .st-pole-stolb > .st-pole-blok { flex: none; }
+
+/* ── МАЛЫЕ ОРГАНЫ СВОДА: степпер и чип (Г6, Г8, Г9) ──────────────────
+   Г9: если орган уже есть, новый блок собирается ИЗ НЕГО. Степпер жил в
+   двух видах — в «Счёте» высотой 24 и заново в траектории высотой 22, —
+   а чип в двух: рамкой в «Ходах» и тенью в траектории. Один блок на всех:
+   высота малого органа 22 (Г8), счёт всегда цельным «− N +» (Г6). */
+.st-panel .st-stepper {
+  display: inline-flex; align-items: center; flex: none; height: 24px;
+  border-radius: 6px; background: rgba(120, 120, 128, .22); overflow: hidden;
+}
+.st-panel .st-stepper button {
+  all: unset; box-sizing: border-box; width: 26px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--st-text-2); font: 14px/1 var(--st-font); cursor: pointer;
+  transition: background .12s, color .12s;
+}
+.st-panel .st-stepper button:hover { color: var(--st-text); background: rgba(255, 255, 255, .07); }
+.st-panel .st-stepper button[disabled] { opacity: .3; cursor: default; background: transparent; }
+.st-panel .st-stepper button:focus-visible { outline: 2px solid var(--st-accent); outline-offset: -2px; }
+/* число в середине — поле ввода: точный ввод там же, где щёлкают шагами.
+   Ширина задана: у input при all:unset она возвращается к размеру по атрибуту
+   size (двадцать знаков) и степпер растягивался на пол-строки. */
+.st-panel .st-stepper > b, .st-panel .st-stepper > input {
+  all: unset; box-sizing: border-box; width: 34px; min-width: 0; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--st-text); font: 11px/1 var(--st-font); text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+.st-panel .st-stepper > input { cursor: text; }
+.st-panel .st-stepper > input.oshibka { color: #FF453A; }
+/* Г7 БЕЗ КОМПЕНСАЦИИ ТАМ, ГДЕ ЦЕНТРУЕТ FLEX (замер 04.09). Правило верно
+   по сути — мерить оптику, а не базовую линию, — но применять его надо по
+   замеру. Здесь у всех малых органов display:flex + align-items:center и
+   line-height:1: браузер ставит текст по геометрии блока, и полпикселя
+   вверх УВОДЯТ его из центра. Замер: с компенсацией перекос −1.00 px,
+   без неё 0.00 (поймано Сергеем: «надписи внутри кнопочек съехали»). */
+/* ЧИП РАБОТАЕТ ГДЕ УГОДНО (Г9, ход 66, слово Сергея). Правила чипа жили
+   под `.st-panel`, и орган, ставящий чип вне панели — инструмент на экране,
+   метка поверх макета, — получал невидимую кнопку и рисовал свою капсулу
+   рядом. Это и есть разнобой, который Г9 ловит. Переменные темы объявлены
+   на `:root`, поэтому чип снаружи одевается сам; тему «Нотхинг» панель
+   переносит на внешний элемент через `temaSyuda`. */
+.st-chip {
+  all: unset; box-sizing: border-box; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 10px; border-radius: 999px; background: var(--st-card);
+  border: 0.5px solid var(--st-hairline);
+  color: var(--st-text-2); font: 11px/1 var(--st-font); white-space: nowrap;
+  cursor: pointer; transition: background .12s, color .12s;
+}
+.st-chip > span { display: block; }
+.st-chip:hover { color: var(--st-text); }
+.st-chip[aria-pressed="true"] { background: var(--st-accent); color: #fff; border-color: transparent; }
+.st-chip[disabled] { opacity: .4; cursor: default; }
+.st-chip:focus-visible { outline: 2px solid var(--st-accent); outline-offset: 2px; }
+/* ряд чипов переносится: ходов бывает сколько угодно, полосу они не делят */
+.st-chipy { display: flex; flex-wrap: wrap; gap: 3px; width: 100%; }
+
+/* ── Секции ── */
+.st-panel h4 {
+  font-size: 11px; font-weight: 600;
+  letter-spacing: .08em; text-transform: uppercase;
+  color: var(--st-text-3);
+  margin: 16px 20px 6px 14px;   /* колонка кластеров + свои 0/6 по рисунку */
+}
+.st-panel h4:first-child { margin-top: 2px; }
+.st-panel .card {
+  background: var(--st-card);
+  border: 0.5px solid rgba(255, 255, 255, .06);
+  border-radius: var(--st-radius-card);
+  overflow: hidden;
+  margin: 0 14px;          /* колонка кластеров */
+  padding-top: 10px;       /* воздух в начале кластера — рисунок Сергея 03.09 */
+}
+.st-panel .row {
+  display: flex; align-items: center; gap: 10px;
+  /* воздух: 40px было плотно глазам — правка приёмки Сергея 02.09 */
+  min-height: 46px; padding: 7px 12px;
+}
+/* СПРЯТАНО — ЗНАЧИТ НЕТ. Атрибут hidden даёт display:none стилем браузера,
+   и любой явный display его перебивает: строка с display:flex остаётся на
+   месте, сколько её ни прячь. Стенду это нужно, когда одни ручки показаны,
+   а другие спрятаны переключателем. */
+.st-panel [hidden] { display: none !important; }
+/* Точка увода от умолчания (по reset-dot Миши Матвеева): ручка уведена —
+   точка горит, клик возвращает умолчание. Родня точке наследования. */
+.st-panel .st-uvod { all: unset; box-sizing: border-box; flex: none;
+  /* рисунок 9 px, цель 20 (минимум HIG); отрицательное поле оставляет
+     колонке прежние 9 px — вертикаль не сдвигается */
+  width: 20px; height: 20px; margin: -5.5px; border-radius: 50%; cursor: pointer;
+  background: radial-gradient(circle, var(--st-accent) 4.5px, transparent 5px); opacity: .8;
+  /* место занято всегда: появление точки не должно сдвигать полоску */
+  visibility: hidden; }
+.st-panel .st-uvod.on { visibility: visible; }
+.st-panel .st-uvod:hover { opacity: 1; }
+.st-theme-nothing .st-uvod { background: linear-gradient(var(--st-accent), var(--st-accent)) no-repeat center / 9px 9px; }
+/* Строка вне сужения: панель прячет своим классом, стенд — атрибутом
+   hidden. Каналы разные, потому что оба живут одновременно. */
+.st-panel .row.st-vne { display: none !important; }
+.st-panel .card > .row + .row,
+.st-panel .card > canvas + .row { border-top: 0.5px solid var(--st-hairline); }
+.st-panel label { flex: 1; color: var(--st-text); cursor: help; }
+/* ── Правило двух этажей (приёмка Сергея 02.09) ──
+   Имя параметра — первым этажом на всю ширину, контролы — вторым.
+   Горизонтальная строка жала нитки, ломала подписи на три строки и
+   делала границы коридора нередактируемым текстом. */
+.st-panel .row.dva { flex-wrap: wrap; row-gap: 6px; }
+.st-panel .row.dva > label { flex: 1 1 100%; }
+.st-panel .row.dva input[type=range] { width: auto; flex: 1 1 auto; }
+/* ── Слайдер по эталону Сергея (Figma «Frame 4», 03.09) ──
+   этаж имени: имя слева, точка увода справа; этаж нитки: нитка во всю
+   ширину, число под шайбой — положение считает paintFill из той же доли */
+.st-panel .st-imya { display: flex; align-items: center; justify-content: space-between; gap: 6px; flex: 1 1 100%; }
+.st-panel .st-imya > label { flex: 1 1 auto; }
+.st-panel .st-nitka { position: relative; flex: 1 1 100%; height: 22px; }
+/* НИТКА ЦЕЛИКОМ, А НЕ ДО ЗНАЧЕНИЯ (правка Сергея 03.09): трек и заливка —
+   свои элементы, как у коридора. Фоном инпута правая, незалитая часть
+   пропадала — нитки читались короткими. */
+.st-panel .st-nitka::before { content: ''; position: absolute; left: 0; right: 0; top: 50%;
+  height: 3px; margin-top: -1.5px; border-radius: 1.5px; background: var(--st-track); }
+.st-panel .st-nitka-fill { position: absolute; left: 0; top: 50%; height: 3px; margin-top: -1.5px;
+  border-radius: 1.5px; background: var(--st-accent); pointer-events: none; }
+/* Насечка умолчания: откуда ручку увели. Выше дорожки и тоньше пилюли —
+   метка места, а не орган; руке не мешает (pointer-events выключены). */
+.st-panel .st-zarubka { position: absolute; top: 50%; width: 2px; height: 11px;
+  margin: -5.5px 0 0 -1px; border-radius: 1px; background: var(--st-text-2);
+  opacity: .45; pointer-events: none; z-index: 1; }
+.st-panel .st-zarubka[hidden] { display: none; }
+.st-panel .st-nitka input[type=range] {
+  -webkit-appearance: none; appearance: none;   /* было в запасном стиле — теперь у нитки */
+  position: relative; display: block; width: 100%; height: 22px;
+  margin: 0; outline: none; background: transparent; }
+/* родная шайба прозрачна и равна пилюле по ширине: ход совпадает */
+.st-panel .st-nitka input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; width: var(--st-pill, 39px); height: 22px; border-radius: 11px; background: transparent; box-shadow: none; }
+.st-panel .st-nitka input[type=range]::-moz-range-thumb { width: var(--st-pill, 39px); height: 22px; border-radius: 11px; background: transparent; box-shadow: none; }
+/* ПИЛЮЛЯ — шайба с числом и стрелками (эталон Сергея, Figma «Frame 4», 03.09):
+   высота 20, светло-серая, число 9 px Medium тёмным, стрелки на 30 %.
+   ШИРИНА СЧИТАЕТСЯ ОТ ЧИСЛА (Сергей 03.09): поле 4 + стрелка 8 + зазор 2 +
+   число + 2 + 8 + 4 — для «30» выходит эталонные 39, минимума нет;
+   ход шайбы берёт измеренную ширину (paintFill, ResizeObserver). */
+/* Г7 + Г8: геометрия важнее шрифта. Высота малого органа 22, поля по 8,
+   число 11 кеглем по центру блока — не по базовой линии. Было 20/4/9:
+   число сидело впритык к кромке и оптически ниже центра (Сергей 03.09). */
+.st-panel .st-pil { position: absolute; top: 0; left: 19.5px; height: 22px; transform: translateX(-50%);
+  display: flex; align-items: center; justify-content: center; padding: 0 8px; box-sizing: border-box;
+  border-radius: 11px; background: var(--st-shayba); color: var(--st-shayba-text);
+  font: 500 11px/1 var(--st-font);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .45), inset 0 0 0 .5px var(--st-shayba-kromka);
+  cursor: grab; user-select: none; white-space: nowrap; }
+.st-panel .st-pil.tyanem { cursor: grabbing; }
+.st-panel .st-pil .val, .st-panel .row.dva .st-pil .val { width: auto; min-width: 0; text-align: center;
+  color: inherit; font: inherit; font-variant-numeric: tabular-nums; cursor: default;
+  /* компенсации нет: пилюля центрует число флексом, и сдвиг увёл бы его
+     из центра — замер 04.09 */ }
+.st-panel .st-pil .val-edit { width: 36px; font: 500 10px var(--st-font); color: var(--st-text); text-align: center; padding: 1px 3px; border-radius: 6px; }
+/* ЧИСЛО НА ЭТАЖЕ ИМЕНИ, ПОЛЕ — ПО КЛИКУ (правка Сергея 03.09, вторая).
+   Плашка стояла на opacity: 0 и проявлялась под курсором: величины не было
+   видно вовсе (Г3), а на тач-экране до неё было не добраться — ховера там
+   нет. Теперь число стоит всегда обычным текстом, плашки не видно; клик по
+   числу поднимает плашку с полем НА ТОМ ЖЕ МЕСТЕ — габариты одни, правый
+   край не едет, вертикаль рифмовки цела (Г17).
+   Г4: точка увода — внутри плашки, слева от числа. */
+/* ТОЧКА СТОИТ У ЧИСЛА И ОТЪЕЗЖАЕТ В КРАЙ ПОЛЯ (правка Сергея 03.09).
+   В покое блок сжат по содержимому: точка увода вплотную к числу, оба
+   прижаты к правой вертикали. Клик открывает плашку — она вырастает
+   ВЛЕВО, и точка отъезжает к её левому краю; правый край стоит на месте,
+   вертикаль рифмовки цела (Г17). Плашка держит те же 24 и то же
+   скругление, что общий блок поля, — Г9. */
+.st-panel .st-imya-pole-obl {
+  flex: none; display: flex; align-items: center; gap: 4px;
+  box-sizing: border-box; height: 24px; padding: 0; border-radius: 6px;
+  background: transparent;
+  transition: background .14s ease, padding .14s ease, gap .14s ease;
+}
+.st-panel .st-imya-pole-obl.vvod {
+  background: rgba(120, 120, 128, .22);
+  box-shadow: inset 0 0 0 1px var(--st-accent);
+  padding: 0 8px; gap: 6px;
+}
+.st-panel .st-imya-pole-obl .st-uvod { margin: -6px 0; }
+/* показатель в покое: ширина по числу, а не колонкой — иначе точка увода
+   отстаёт от него на пустое место (Г7: цифра садится ниже центра) */
+.st-panel .st-imya-chislo {
+  all: unset; box-sizing: border-box; flex: none; height: 24px;
+  display: flex; align-items: center; justify-content: flex-end;
+  color: var(--st-text-2); font: 11px/1 var(--st-font); text-align: right;
+  font-variant-numeric: tabular-nums; cursor: text;
+}
+.st-panel .row:hover .st-imya-chislo { color: var(--st-text); }
+.st-panel .st-imya-chislo:focus-visible { outline: 2px solid var(--st-accent); outline-offset: 2px; border-radius: 4px; }
+.st-panel .st-imya-pole {
+  flex: none; width: 44px; box-sizing: border-box; height: 24px; padding: 0;
+  background: transparent;
+  border: 0; color: var(--st-text); font: 11px var(--st-font); text-align: right;
+  font-variant-numeric: tabular-nums; outline: none;
+}
+.st-panel .st-imya-pole.oshibka { color: #FF453A; }
+.st-panel .st-imya-pole:focus-visible { outline: none; }
+.st-panel .st-nitka input[type=range]:focus-visible ~ .st-pil { box-shadow: 0 0 0 3px var(--st-accent); }
+/* ── Рифмовка по вертикалям (правило Сергея, 02.09) ──
+   Элементы разных этажей и строк держатся сквозных вертикальных линий:
+   все нитки начинаются на одной вертикали и заканчиваются на одной,
+   числа стоят в правой сквозной колонке одной ширины, точки увода — в
+   своей узкой колонке самым правым краем (место под точку занято всегда,
+   чтобы вертикаль не рвалась). Исключение оговорено правилом: левое
+   число коридора — показатель слева от нитки. */
+.st-panel .row.dva .val { flex: none; width: 4.5ch; min-width: 0; text-align: right; }
+.st-panel .row.dva .st-kor-val { flex: none; width: 4.5ch; min-width: 0; }
+.st-panel .row.dva .st-kor-val:last-of-type { text-align: right; }
+/* число наследования живёт в пилюле нитки (Г9, ход 64) — своей ширины
+   ему больше не задаём: пилюля считает её от числа */
+.st-panel .val {
+  min-width: 44px; text-align: right; cursor: text;
+  color: var(--st-text-2); font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── ЗАПАСНОГО ПОЛЗУНКА БОЛЬШЕ НЕТ (Г9, ход 64) ────────────────────────
+   Здесь жил общий стиль `input[type=range]` — цель 24, дорожка 3 px фоном
+   самого инпута. Он был не эталоном, а СЕТКОЙ БЕЗОПАСНОСТИ: в неё падало
+   всё, что рисовало нитку мимо ядра, и падало молча — старым видом до
+   эталона 03.09. На этажном стенде так стояли двадцать ползунков из
+   тридцати шести (снимки Сергея 04.09). Нитка теперь одна — блок
+   `StendPanel.nitkaBlok`; правила её вида собраны у `.st-nitka` ниже, и
+   ползунок вне нитки остаётся родным браузерным. Это видно сразу, и это
+   лучше, чем похожий на правду. */
+
+/* Величина просит орган, которого нет: строка говорит это словами, а не
+   выходит ниткой с NaN (ход 64). Красный из алфавита темы — тот же, каким
+   красится линия, которую правят. */
+.st-panel .st-net-organa { margin-left: auto; padding: 0 8px; height: 22px;
+  display: inline-flex; align-items: center; border-radius: 11px;
+  background: rgba(255, 69, 58, .16); color: #FF453A;
+  font: 11px/1 var(--st-font); white-space: nowrap; cursor: help; }
+
+/* ── Выпадающий список ── */
+.st-panel select {
+  -webkit-appearance: none; appearance: none;
+  max-width: 150px;
+  /* стрелки вверх/вниз — сплошные треугольники, как нарисовал Сергей
+     в Figma «Строка/Селект» (03.09); белый .6, поле 10×14 у правого края */
+  background: rgba(120, 120, 128, .26)
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='10' height='14' viewBox='0 0 10 14'><path d='M5 1.5 2.4 5.6h5.2z M5 12.5 2.4 8.4h5.2z' fill='rgba(255,255,255,0.6)'/></svg>")
+    no-repeat right 8px center / 10px 14px;
+  border: none; border-radius: 7px;
+  color: #fff; font: 12px var(--st-font);
+  padding: 5px 26px 5px 10px;
+  cursor: pointer;
+}
+
+/* ── Редактор кривой безье: квадратное поле, удобное для лепки ── */
+.st-panel canvas.curve {
+  display: block; width: calc(100% - 24px); height: auto;
+  aspect-ratio: 1 / 1;
+  margin: 4px auto 12px; border-radius: 8px;
+  touch-action: none; cursor: crosshair;
+}
+
+/* ── Кнопка сброса ── */
+/* РИТМ ПОДВАЛА ОДИН (правка Сергея 04.09: «почему везде отбивки разные»).
+   Было 14 сверху и 2 снизу, а у группы копирования сверху 8 — на глаз
+   зазоры шли 16, 16, 8, 8, 8. Теперь между кнопками ровно 8; первая
+   отбивается от содержимого на 14, последняя даёт столько же до низа. */
+.st-panel .st-reset {
+  margin: 8px 14px 0; width: calc(100% - 28px);
+  background: var(--st-card);
+  border: 0.5px solid rgba(255, 255, 255, .06);
+  border-radius: 32px;     /* капсула — рисунок Сергея 03.09; тумблер остаётся прямоугольным */
+  padding: 10px 0; cursor: pointer;
+  color: var(--st-accent); font: 500 13px var(--st-font);
+  transition: background .15s ease;
+}
+/* у копирующих кнопок был свой margin-top 14 — он и держал разнобой
+   (замер 04.09): ритм подвала теперь общий, отдельного правила не нужно */
+/* Отбивка 14 — там, где подвал начинается: после последнего кластера.
+   Через `:not(.st-reset)` не выходит — между кнопками прячется поле
+   снимка, и оно рвало ритм даже свёрнутым (замер 04.09). */
+.st-panel .st-telo > .card + .st-reset { margin-top: 14px; }
+.st-panel .st-telo > .st-reset:last-child { margin-bottom: 14px; }
+.st-panel .st-reset:hover { background: rgba(255, 255, 255, .09); }
+.st-panel .st-reset:active { background: rgba(255, 255, 255, .12); }
+
+/* ── Всплывающая подсказка ── */
+.st-tip {
+  position: fixed; z-index: calc(var(--st-z) + 1); max-width: 260px;
+  display: block; opacity: 0; visibility: hidden;
+  transition: opacity .16s ease, visibility .16s ease;
+  background: var(--st-glass-2);
+  -webkit-backdrop-filter: var(--st-blur);
+  backdrop-filter: var(--st-blur);
+  border: 0.5px solid var(--st-border);
+  border-radius: 10px;
+  box-shadow: 0 10px 34px rgba(0, 0, 0, .5);
+  padding: 9px 11px; color: rgba(255, 255, 255, .85);
+  font: 12px/1.5 var(--st-font);
+  pointer-events: none;
+}
+.st-tip.show { opacity: 1; visibility: visible; }
+
+/* ────────────────────────────────────────────────────────────────────
+   Тема «Нотхинг» (Nothing OS): матовый чёрный, моноширинная типографика,
+   красная точка-акцент, пунктирные разделители. Включается классом
+   .st-theme-nothing на .st-gear / .st-panel / .st-tip (панель делает сама)
+   ──────────────────────────────────────────────────────────────────── */
+.st-theme-nothing {
+  --st-accent: #D71921;
+  --st-glass: rgba(10, 10, 10, .93);
+  --st-glass-2: rgba(16, 16, 16, .96);
+  --st-card: rgba(255, 255, 255, .03);
+  --st-hairline: rgba(255, 255, 255, .16);
+  --st-border: rgba(255, 255, 255, .2);
+  --st-track: rgba(255, 255, 255, .25);
+  --st-font: "SF Mono", ui-monospace, "Roboto Mono", Menlo, monospace;
+  --st-radius: 10px;
+  --st-radius-card: 8px;
+  --st-blur: blur(8px);
+}
+.st-panel.st-theme-nothing { font-size: 11.5px; letter-spacing: .02em; }
+.st-panel.st-theme-nothing h4 { letter-spacing: .22em; color: rgba(255, 255, 255, .6); }
+.st-panel.st-theme-nothing h4::before {
+  content: ''; display: inline-block; width: 6px; height: 6px;
+  border-radius: 50%; background: var(--st-accent);
+  margin-right: 8px; vertical-align: 1px;
+}
+.st-panel.st-theme-nothing .card > .row + .row,
+.st-panel.st-theme-nothing .card > canvas + .row {
+  border-top: 1px dashed rgba(255, 255, 255, .18);
+}
+.st-panel.st-theme-nothing select { border-radius: 4px; }
+.st-panel.st-theme-nothing .st-reset {
+  border-radius: 8px;
+  text-transform: uppercase; letter-spacing: .18em; font-size: 11px;
+}
+
+/* ── гармошки, свёрнутые кривые, точный ввод (2026-08-01) ── */
+.st-panel h4.st-sec { user-select: none; cursor: pointer; display: flex; align-items: center; gap: 8px; }
+.st-panel h4.st-sec .st-sec-imya { flex: 1 1 auto; min-width: 0; }
+/* схват перестановки кластера (рука Сергея 03.09): две черты слева от имени */
+.st-panel .st-shvat { all: unset; flex: none; width: 16px; height: 20px; display: inline-flex; align-items: center;
+  justify-content: center; cursor: grab; color: var(--st-text-2); border-radius: 4px; }
+.st-panel .st-shvat:hover { color: var(--st-text); background: var(--st-card); }
+.st-panel .st-shvat svg { width: 10px; height: 6px; fill: none; stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; }
+.st-panel h4.st-sec.st-tyanem { opacity: .55; }
+/* пока тянем кластер, панель не выделяет текст и держит курсор тяги */
+.st-panel.st-tyanem-idyot { cursor: grabbing; user-select: none; }
+.st-panel.st-tyanem-idyot .card { pointer-events: none; }
+.st-panel h4.st-sec.st-tyanem .st-shvat { cursor: grabbing; }
+.st-panel h4.st-sec:hover { opacity: .85; }
+
+/* верхняя строка панели: язык и складывание — то, что относится к панели
+   целиком, а не к отдельной ручке */
+.st-panel .st-verh { display: flex; align-items: center; gap: 8px;
+  margin: 0; padding: 12px 14px 10px; }
+
+/* СТРОКА СОСТОЯНИЯ. Из суженного вида нельзя выпасть незаметно: пропавшие
+   ручки читаются как поломка, если не сказано, что они спрятаны. Строка
+   прибита к верху (sticky) — она отвечает «где я» в любой точке прокрутки
+   и держит выход. Фон непрозрачный: под ней едут карточки. */
+.st-panel .st-sost { position: sticky; top: calc(-1 * var(--st-pole)); z-index: 3;
+  display: flex; align-items: center; gap: 8px;
+  /* ВО ВСЮ ШИРИНУ ПАНЕЛИ (правка Сергея 03.09): поле панели держат только
+     кластеры, полоса состояния идёт от кромки до кромки — иначе на липком
+     верху она висела островом с полями по бокам. Скругление снимаем: верх
+     обрезает радиус самой панели. */
+  margin: 0 calc(-1 * var(--st-pole)); padding: 9px 24px; border-radius: 0;
+  background: var(--st-glass-2, rgba(30,30,32,.96));
+  border-bottom: 0.5px solid var(--st-hairline);
+  font-size: 11px; color: var(--st-text-2); }
+.st-panel .st-sost b { font-weight: 500; color: var(--st-text); }
+.st-panel .st-sost.uzko b { color: var(--st-accent); }
+.st-panel .st-sost-x { margin-left: auto; border: 0; background: transparent;
+  color: var(--st-text-2); font: inherit; font-size: 14px; line-height: 1;
+  padding: 2px 4px; cursor: pointer; border-radius: 5px;
+  min-width: 24px; min-height: 24px; display: inline-flex; align-items: center; justify-content: center; }
+.st-panel .st-sost-x:hover { color: var(--st-text); background: var(--st-card); }
+.st-panel .st-sost-x[hidden] { display: none; }
+/* Прицел — вход в выбор места. Стоит рядом с выходом: одна пара «войти в
+   сужение — выйти», и обе кнопки в строке, которая отвечает «где я». */
+.st-panel .st-sost-p { margin-left: auto; border: 0; background: transparent;
+  color: var(--st-text-2); padding: 3px 4px 1px; cursor: pointer; border-radius: 5px;
+  min-width: 24px; min-height: 24px; display: inline-flex; align-items: center; justify-content: center; }
+.st-panel .st-sost-p svg { width: 13px; height: 13px; display: block; }
+.st-panel .st-sost-p:hover { color: var(--st-text); background: var(--st-card); }
+.st-panel .st-sost-p.on { color: #fff; background: var(--st-accent); }
+.st-panel .st-sost-p + .st-sost-x { margin-left: 0; }
+
+/* ── СЛОЙ МЕСТ ─────────────────────────────────────────────────────────
+   Метки лежат поверх макета и ПОД панелью, сквозные для мыши: слой
+   показывает, а не ловит. Метится всё место разом, а не элемент под
+   курсором, — в этом весь довод: у элемента своих настроек нет, его
+   держат законы, и те же законы держат ещё сотню таких же. */
+.st-mesta { position: fixed; inset: 0; z-index: calc(var(--st-z) - 1); pointer-events: none; }
+.st-metka { position: fixed; border: 1px solid var(--st-accent);
+  background: color-mix(in srgb, var(--st-accent) 14%, transparent);
+  border-radius: 2px; }
+.st-mesto-imya { position: fixed; transform: translate(14px, 14px);
+  background: var(--st-accent); color: #fff; white-space: nowrap;
+  font: 500 11px/1.35 var(--st-font); padding: 4px 8px; border-radius: 7px; }
+/* Прицел на всём макете: режим виден курсором ещё до наведения на место. */
+body.st-vybor, body.st-vybor * { cursor: crosshair !important; }
+body.st-vybor .st-panel, body.st-vybor .st-panel * { cursor: default !important; }
+.st-panel .st-yaz { display: flex; border: 1px solid var(--st-line, rgba(255,255,255,.18));
+  border-radius: 999px; overflow: hidden; }   /* капсула — рисунок Сергея 03.09 */
+.st-panel .st-yaz-b { border: 0; background: transparent; color: inherit;
+  font: 600 11px/1 inherit; letter-spacing: .06em; padding: 5px 10px; cursor: pointer; border-radius: 999px; }  /* 11 = caption2, ниже шкалы нет */
+.st-panel .st-yaz-b.on { background: var(--st-accent, #0A84FF); color: #fff; }
+.st-panel .st-sver { margin-left: auto; border: 0; background: transparent;
+  color: inherit; opacity: .6; font: inherit; font-size: 11px; cursor: pointer;
+  padding: 4px 2px; }
+.st-panel .st-sver:hover { opacity: 1; }
+/* Значок сворачивания — рисунком, не глифом: ▾ и ▸ в SF Pro подменялись
+   точкой (поймано Сергеем 03.09). Шеврон вниз — открыто, влево — закрыто. */
+.st-panel h4.st-sec .st-sec-znak { flex: none; margin-left: auto; display: inline-flex;
+  align-items: center; justify-content: center; width: 16px; height: 16px; color: var(--st-text-2); }
+.st-panel h4.st-sec .st-sec-znak svg { width: 10px; height: 6px; fill: none; stroke: currentColor;
+  stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round;
+  transition: transform .18s cubic-bezier(.32, .72, 0, 1); }
+.st-panel h4.st-sec.st-closed .st-sec-znak svg { transform: rotate(-90deg); }
+/* глаз секции: слева от стрелки складывания, цель 24 */
+.st-panel h4.st-sec { position: relative; }
+.st-panel .st-glaz { all: unset; flex: none; margin-left: auto;
+  width: 24px; height: 22px; display: inline-flex; align-items: center; justify-content: center;
+  cursor: pointer; border-radius: 5px; color: var(--st-text-2); }
+.st-panel .st-glaz:hover { color: var(--st-text); background: var(--st-card); }
+.st-panel .st-glaz svg { width: 14px; height: 14px; fill: none; stroke: currentColor;
+  stroke-width: 1.4; stroke-linecap: round; stroke-linejoin: round; }
+.st-panel .st-glaz .st-glaz-cherta { display: none; }
+.st-panel .st-glaz.off .st-glaz-cherta { display: block; }
+.st-panel .card.st-vykl { opacity: .45; }
+/* длинное имя секции не заезжает под глаз и стрелку */
+.st-panel h4.st-sec:has(.st-glaz)::after { margin-left: 0; }
+
+.st-panel .card[hidden], .st-panel canvas.curve[hidden] { display: none; }
+.st-panel label.st-fold { text-decoration: underline dotted rgba(255,255,255,.3); text-underline-offset: 3px; }
+.st-panel .val-edit.oshibka { border-color: #FF453A; }
+/* Поле числа вместо нитки (кегль — числом, правило Сергея 02.09, П16):
+   правая колонка, та же вертикаль, что у чисел слайдеров */
+.st-panel .st-pole-obl { position: relative; flex: none; margin-left: auto; }
+/* одна высота со всеми полями панели — 24 (правка Сергея 03.09) */
+.st-panel .st-pole { display: block; width: 72px; height: 24px; box-sizing: border-box; text-align: right;
+  background: rgba(120, 120, 128, .22); border: 0; box-shadow: inset 0 0 0 .5px var(--st-hairline);
+  border-radius: 6px;
+  color: var(--st-text); font: 11px var(--st-font); font-variant-numeric: tabular-nums;
+  padding: 0 8px 0 24px; outline: none; }
+.st-panel .st-pole:focus { box-shadow: inset 0 0 0 1px var(--st-accent); }
+/* точка увода живёт внутри поля, слева; цель 20 остаётся */
+.st-panel .st-pole-obl .st-uvod { position: absolute; left: 2px; top: 50%; transform: translateY(-50%); margin: 0; }
+/* поля пар, коридора полями, фаз: число слева — точка справа, обёртка во всю ширину поля */
+.st-panel .st-pole-obl.sprava { display: block; width: 100%; margin-left: 0; }
+.st-panel .st-pole-obl.sprava .st-uvod { left: auto; right: 2px; }
+.st-panel .st-pole-obl.sprava input { padding-right: 24px; }
+.st-panel .st-pole:focus { border-color: var(--st-accent); }
+.st-panel .st-pole.oshibka { box-shadow: inset 0 0 0 1px #FF453A; }  /* systemRed dark: кривой ввод виден, поле не закрывается */
+.st-panel .val-edit { width: 76px; background: transparent; border: 1px solid var(--st-accent, #0A84FF); border-radius: 6px; color: inherit; font: inherit; text-align: right; padding: 2px 6px; outline: none; }
+
+/* ЧЕТЫРЕ ЧИСЛА КРИВОЙ. Кривую переносят между стендами числами, а не глазом,
+   поэтому рукоятки читаются и вводятся; ⇄ отражает разгон в торможение. */
+.st-panel .st-krivaya-chisla {
+  display: flex; align-items: center; gap: 4px; margin: 6px 12px 10px;
+}
+.st-panel .st-kch { display: flex; align-items: center; gap: 3px; flex: 1 1 0; min-width: 0; }
+.st-panel .st-kch > span { flex: none; font-size: 10px; color: var(--st-text-2); }
+.st-panel .st-kch input {
+  width: 100%; min-width: 0; box-sizing: border-box; height: 24px; padding: 0 5px;
+  background: rgba(120, 120, 128, .22); border: 0; border-radius: 6px;
+  color: var(--st-text); font: 11px var(--st-font); text-align: center;
+  font-variant-numeric: tabular-nums; outline: none;
+}
+.st-panel .st-kzerkalo {
+  all: unset; box-sizing: border-box; flex: none; width: 24px; height: 24px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px; background: rgba(120, 120, 128, .22);
+  color: var(--st-text-2); font-size: 12px; cursor: pointer;
+}
+.st-panel .st-kzerkalo:hover { color: var(--st-text); background: var(--st-accent); }
+.st-panel .st-krivaya-chisla[hidden] { display: none; }
+
+/* ── ЦВЕТ: свой пикер вместо системного окна ───────────────────────────
+   Устройство снято с дизайн-системы Миши Матвеева («Panel / Color Picker»):
+   поле 8, квадрат насыщенность×яркость во всю ширину, ряд тона 28 — полоса
+   и квадратная пипетка 28 через 4, ниже поле HEX. Нативный input[type=color]
+   поднимал системное окно macOS: чужая раскладка поверх стенда.
+   Свотч в строке — вход: он же показывает текущий цвет. */
+.st-panel .st-svotch {
+  all: unset; box-sizing: border-box; flex: none; cursor: pointer;
+  width: 44px; height: 22px; border-radius: 5px;
+  box-shadow: inset 0 0 0 1px var(--st-track);
+}
+.st-panel .st-svotch:hover { box-shadow: inset 0 0 0 1px var(--st-text-2); }
+/* ПОДГРУППА — второй уровень внутри кластера. Строка-шапка со стрелкой и
+   счётчиком, тело с отступом. Отличается от секции нарочно: секция кричит
+   капителью и разрядкой, подгруппа говорит обычным набором — иначе два
+   уровня спорят за внимание и ни один не читается старшим. */
+.st-panel .st-grp { border-top: 0.5px solid var(--st-hairline); }
+.st-panel .st-grp:first-child { border-top: 0; }
+.st-panel .st-grp-sh {
+  all: unset; box-sizing: border-box; display: flex; align-items: center; gap: 8px;
+  width: 100%; padding: 9px 11px; cursor: pointer;
+  font: 500 12px/1 var(--st-font); color: var(--st-text);
+}
+.st-panel .st-grp-sh:hover { background: rgba(255, 255, 255, .03); }
+.st-panel .st-grp-sh:focus-visible { outline: 2px solid var(--st-accent); outline-offset: -2px; }
+.st-panel .st-grp-imya { flex: 1; }
+.st-panel .st-grp-schet {
+  font-style: normal; font-size: 11px; color: var(--st-text-3);
+  font-variant-numeric: tabular-nums; min-width: 2ch; text-align: right;
+}
+.st-panel .st-grp-ch { flex: none; display: inline-flex; color: var(--st-text-3);
+  transition: transform .16s ease; transform: rotate(90deg); }
+.st-panel .st-grp-ch svg { width: 6px; height: 10px; fill: none;
+  stroke: currentColor; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; }
+.st-panel .st-grp-zakryta .st-grp-ch { transform: rotate(0deg); }
+.st-panel .st-grp-telo > .row { padding-left: 22px; }
+.st-panel .st-grp-telo > .row:first-child { border-top: 0.5px solid var(--st-hairline); }
+
+.st-panel .st-cvet {
+  margin: 0 12px 10px; padding: 8px;
+  background: var(--st-card); border-radius: var(--st-radius-card);
+  box-shadow: inset 0 0 0 0.5px var(--st-hairline);
+}
+/* квадрат: обе оси равноправны — насыщенность вправо, яркость вниз */
+.st-panel .st-cvet-obl { position: relative; width: 100%; aspect-ratio: 1; cursor: crosshair; }
+.st-panel .st-cvet-kv { display: block; width: 100%; height: 100%; border-radius: 6px; }
+.st-panel .st-cvet-tochka {
+  position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px;
+  border-radius: 50%; box-shadow: 0 0 0 1.5px #fff, 0 1px 4px rgba(0, 0, 0, .5);
+  pointer-events: none;
+}
+.st-panel .st-cvet-ryad { display: flex; align-items: center; gap: 4px; margin-top: 8px; height: 28px; }
+.st-panel .st-cvet-ton {
+  position: relative; flex: 1 1 auto; height: 28px; border-radius: 6px; cursor: pointer;
+  background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+}
+.st-panel .st-cvet-tt {
+  position: absolute; top: -2px; bottom: -2px; width: 6px; margin-left: -3px;
+  border-radius: 3px; background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .5);
+  pointer-events: none;
+}
+.st-panel .st-cvet-pip {
+  all: unset; box-sizing: border-box; flex: none; width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px; background: rgba(120, 120, 128, .22);
+  color: var(--st-text); cursor: pointer;
+}
+.st-panel .st-cvet-pip:hover { background: var(--st-accent); color: #fff; }
+.st-panel .st-cvet-pip svg { width: 16px; height: 16px; fill: currentColor; display: block; }
+.st-panel .st-cvet-pip[hidden] { display: none; }
+.st-panel .st-cvet-niz { margin-top: 8px; }
+.st-panel .st-cvet-hex {
+  width: 100%; box-sizing: border-box; height: 28px; padding: 0 8px;
+  background: rgba(120, 120, 128, .22); border: 0; border-radius: 6px;
+  color: var(--st-text); font: 12px/28px var(--st-font); text-transform: uppercase;
+  font-variant-numeric: tabular-nums; outline: none;
+}
+.st-panel .st-cvet-hex:focus-visible { outline: 2px solid var(--st-accent); outline-offset: 1px; }
+.st-panel .st-cvet-hex.oshibka { color: #FF453A; box-shadow: inset 0 0 0 1px #FF453A; }
+.st-theme-nothing .st-svotch, .st-theme-nothing .st-cvet-kv,
+.st-theme-nothing .st-cvet-ton, .st-theme-nothing .st-cvet-hex { border-radius: 0; }
+
+/* ── Узкий экран: панель становится нижним листом ──
+   Найдено 2026-08-24 на прогоне каталога: панель 324 px на экране 360 px
+   закрывает содержимое целиком — стенд не виден, крутить нечего.
+   Это тот случай, когда закон меняется качественно, а не подстраивается:
+   на широком экране панель стоит РЯДОМ с работой, на узком — ПОВЕРХ неё,
+   и значит должна вести себя как лист: во всю ширину, снизу, с ручкой хвата
+   и коротким ходом до края. Приёмы раскладки сняты с tweakpane-compact-kit. */
+@media (max-width: 560px) {
+  .st-panel {
+    /* лист лежит ПОВЕРХ работы, а не рядом с ней: стекло уплотняется,
+       иначе сквозь панель читается то, чем управляешь */
+    --st-glass: rgba(18, 18, 20, .95);
+    /* лист плотный, размывать под ним нечего: backdrop-filter на весь низ экрана
+       даёт лишний композитный слой и мешает содержимому под панелью */
+    -webkit-backdrop-filter: none; backdrop-filter: none;
+    left: 0; right: 0; bottom: 0; width: auto;
+    max-height: 62dvh;
+    border-radius: var(--st-radius) var(--st-radius) 0 0;
+    border-left: 0; border-right: 0; border-bottom: 0;
+    --st-pole: 14px;
+    padding: 0;
+    transform-origin: bottom center;
+    animation: st-list-in .3s cubic-bezier(.32, .72, 0, 1);
+  }
+  /* хват: полоска сверху говорит, что лист поднят над работой */
+  .st-telo::before {
+    content: ""; display: block; width: 36px; height: 4px; margin: -6px auto 12px;
+    border-radius: 2px; background: var(--st-border);
+  }
+  .st-telo { padding: 16px var(--st-pole) calc(14px + env(safe-area-inset-bottom)); max-height: none; }
+  /* лист во всю ширину — полосе прокрутки снаружи негде встать */
+  .st-panel .st-skroll, .st-panel .st-tyaga { display: none; }
+  .st-panel.st-theme-nothing { --st-glass: rgba(10, 10, 10, .97); }
+  .st-gear { bottom: calc(12px + env(safe-area-inset-bottom)); }
+  .st-panel h4 { margin-left: 0; margin-right: 6px; }
+  .st-panel .card { margin: 0; }
+  .st-panel .st-reset { margin-left: 0; margin-right: 0; width: 100%; }
+  .st-panel .st-verh { padding: 0 0 10px; }
+  .st-panel .st-sost { border-radius: 0; }
+  .st-panel h4 { margin-right: 0; }
+  /* под пальцем минимум 28 pt: пилюля и её невидимая шайба растут в высоту */
+  .st-panel .st-nitka, .st-panel .st-nitka input[type=range] { height: 28px; }
+  .st-panel .st-nitka input[type=range]::-webkit-slider-thumb { height: 28px; border-radius: 14px; }
+  .st-panel .st-nitka input[type=range]::-moz-range-thumb { height: 28px; border-radius: 14px; }
+  .st-panel .st-pil { height: 28px; border-radius: 14px; font-size: 11px; }
+  .st-tip { display: none; }            /* подсказке негде встать: лист во всю ширину */
+}
+@keyframes st-list-in {
+  /* только ход снизу: если анимация не проиграется (снимок, reduced-motion,
+     старый браузер), лист обязан остаться видимым — прозрачность не трогаем */
+  from { transform: translateY(16px); }
+}
+
+/* ────────────────────────────────────────────────────────────────────
+   Клавиатура и системные настройки — приёмка по HIG 02.09.2026
+   (dickwu/apple-design-skill, ehmo/platform-design-skills)
+   ──────────────────────────────────────────────────────────────────── */
+/* Кольцо фокуса: органы снимают outline через all:unset, слайдер — явно;
+   без кольца клавиатура слепа. Специфичность 0,2,0 бьёт .st-seg button. */
+.st-panel :focus-visible, .st-gear:focus-visible {
+  outline: 2px solid var(--st-accent); outline-offset: 2px;
+}
+.st-panel input[type=range]:focus-visible { outline: none; }
+.st-panel input[type=range]:focus-visible::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--st-accent), 0 1px 4px rgba(0, 0, 0, .45);
+}
+.st-panel input[type=range]:focus-visible::-moz-range-thumb {
+  box-shadow: 0 0 0 3px var(--st-accent), 0 1px 4px rgba(0, 0, 0, .45);
+}
+/* Reduce Motion: вход панели — только ход, его и снимаем. */
+@media (prefers-reduced-motion: reduce) {
+  .st-panel { animation: none; }
+  .st-gear, .st-tip, .st-reset, .st-uvod { transition: none; }
+}
+/* Reduce Transparency: стекло сплошное, размывать нечего. */
+@media (prefers-reduced-transparency: reduce) {
+  :root, .st-theme-nothing, .st-nad-svetlym {
+    --st-glass: rgba(24, 24, 26, .97); --st-glass-2: rgba(40, 40, 42, .98); --st-blur: none;
+  }
+}
+/* Increase Contrast: вторичный текст и линии ярче (Apple: secondary .8). */
+@media (prefers-contrast: more) {
+  :root {
+    --st-text-2: rgba(235, 235, 245, .8); --st-text-3: rgba(235, 235, 245, .8);
+    --st-border: rgba(255, 255, 255, .3); --st-track: rgba(255, 255, 255, .4);
+  }
+}
+/* Windows High Contrast: rgba-рамки исчезают — рисуем системным цветом. */
+@media (forced-colors: active) {
+  .st-panel, .st-panel .card, .st-gear { border: 1px solid CanvasText; }
+}
+
+/* ПОИСК ПО РУЧКАМ. Панель растёт вместе со стендом, и на полутора сотнях
+   величин человек перестаёт понимать, где искать нужную. Поле стоит первым в
+   панели — выше языка и кластеров: вопрос «где то, что я ищу» задают до всего
+   остального. Края круглые целиком, набор светлый: поле читается как строка
+   ввода, а не как ещё один ярлык среди ручек. */
+/* Поля по краям те же, что у остального в панели: без них строка упиралась
+   в края вкладки и читалась чужой (Сергей 10.09). Список внутри обёртки
+   тянется по ней, значит и он встаёт по этим же полям. */
+.st-panel .st-poisk-obl{ position:relative; margin:10px 12px 8px }
+.st-panel .st-poisk{
+  display:block; width:100%; padding:8px 14px; box-sizing:border-box;
+  font:inherit; font-size:12px; line-height:18px;
+  color:#f2f2f2; background:rgba(255,255,255,.10);
+  border:1px solid rgba(255,255,255,.18); border-radius:999px;
+  -webkit-appearance:none; appearance:none; outline:none;
+}
+.st-panel .st-poisk:focus{ border-color:rgba(255,255,255,.5); background:rgba(255,255,255,.14) }
+.st-panel .st-poisk::placeholder{ color:#f2f2f2; opacity:.55 }
+.st-panel .st-poisk::-webkit-search-cancel-button{ filter:invert(1); opacity:.6 }
+/* История — своим списком, а не нативным: он открывается по наведению.
+   Лежит ПОД полем вплотную, чтобы курсор дошёл до неё, не разорвав наведение. */
+.st-panel .st-poisk-ist{
+  position:absolute; left:0; right:0; top:100%; z-index:5;
+  padding:4px; border-radius:14px;
+  background:#2b2b2b; border:1px solid rgba(255,255,255,.14);
+  box-shadow:0 6px 18px rgba(0,0,0,.35);
+}
+.st-panel .st-poisk-ist-q{
+  display:block; width:100%; text-align:left; padding:5px 10px;
+  font:inherit; font-size:12px; line-height:16px; color:#f2f2f2;
+  background:none; border:0; border-radius:10px; cursor:pointer;
+}
+.st-panel .st-poisk-ist-q:hover{ background:rgba(255,255,255,.10) }
+.st-panel .st-ne-nayden{ display:none !important }
+/* Пометки найденной секции нет: волосяная линия слева читалась не как
+   признак отбора, а как артефакт на краю панели (Сергей 10.09). Что список
+   отобран, и так видно — в нём осталось одно нужное. */
+
