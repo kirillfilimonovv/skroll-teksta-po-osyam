@@ -1,18 +1,21 @@
 (() => {
   'use strict';
   const main = document.querySelector('main');
-  const key = 'diagonal-longread-trajectories-v1';
+  const key = 'diagonal-longread-trajectories-v2';
   const copy = value => JSON.parse(JSON.stringify(value));
-  const centeredX = () => main.getBoundingClientRect().left / innerWidth;
-  const straight = x => ({uzly: [
-    {x, y: 0, r: 0, z: 'net', ho: {x: 0, y: 1/3}},
-    {x, y: 1, r: 0, z: 'net', hi: {x: 0, y: -1/3}}
-  ], zamknut: false});
   const fonts = ["PT Mono"];
-  const defaults = {body: straight(centeredX()), headings: straight(centeredX()), guides: true,
-    font:'PT Mono', size:18, textColor:'#111111', backgroundColor:'#ffffff',
-    gradient:false, gradientStart:'#fff1eb', gradientEnd:'#ace0f9', gradientAngle:135,
-    vignetteColor:'#000000', vignetteStrength:0, backgroundBlur:0};
+  const defaults = {
+    body: {uzly: [
+      {x:-0.0074,y:0.9369,r:0.37,z:'ugol',ho:{x:0.4559,y:-0.265},hi:{x:-0.191,y:0.111}},
+      {x:0,y:0,r:0.37,z:'net',hi:{x:0.4698,y:0.3197},ho:{x:-0.0012,y:-0.0902}}
+    ],zamknut:false},
+    headings: {uzly: [
+      {x:0.9971,y:0.0188,r:0.94,z:'net',ho:{x:-0.9743,y:0.3631},hi:{x:-0.9885,y:0.3565}},
+      {x:0.9983,y:0.9952,r:0,z:'net',ho:{x:-0.984,y:-0.3014},hi:{x:-1.0123,y:-0.3012}}
+    ],zamknut:true},
+    guides:true, font:'PT Mono', size:18, textColor:'#ffffff', backgroundColor:'#2b2b2b',
+    gradient:true, gradientStart:'#b78255', gradientEnd:'#366792', gradientAngle:214,
+    vignetteColor:'#ffffff', vignetteStrength:100, backgroundBlur:100};
   const params = copy(defaults);
   try {
     const saved = JSON.parse(localStorage.getItem(key));
@@ -146,10 +149,6 @@
   panel.pokazat(true);
   addEventListener('scroll',schedule,{passive:true});
   addEventListener('resize',()=>{
-    for (const group of groups) {
-      if (JSON.stringify(params[group.key])===JSON.stringify(defaults[group.key])) params[group.key]=straight(centeredX());
-      defaults[group.key]=straight(centeredX());
-    }
     panel.obnovit(); measure();
   });
   applyAppearance();
