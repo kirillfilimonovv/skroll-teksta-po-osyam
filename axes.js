@@ -8,9 +8,9 @@
     {x, y: 0, r: 0, z: 'net', ho: {x: 0, y: 1/3}},
     {x, y: 1, r: 0, z: 'net', hi: {x: 0, y: -1/3}}
   ], zamknut: false});
-  const fonts = ["Arial","Roboto","Open Sans","Noto Sans","Noto Serif","PT Sans","PT Serif","PT Mono","Lora","Merriweather","Montserrat","Oswald","Raleway","Ubuntu","Ubuntu Mono","Roboto Slab","Roboto Condensed","Roboto Mono","Fira Sans","Fira Sans Condensed","Fira Mono","Rubik","Comfortaa","Exo 2","Play","Jura","Cuprum","Arimo","Tinos","Cousine","Didact Gothic","IBM Plex Sans","IBM Plex Serif","IBM Plex Mono","Manrope","Inter","Source Sans 3","Alegreya","Alegreya Sans","Vollkorn"];
+  const fonts = ["PT Mono"];
   const defaults = {body: straight(centeredX()), headings: straight(centeredX()), guides: true,
-    font:'Arial', size:18, textColor:'#111111', backgroundColor:'#ffffff',
+    font:'PT Mono', size:18, textColor:'#111111', backgroundColor:'#ffffff',
     gradient:false, gradientStart:'#fff1eb', gradientEnd:'#ace0f9', gradientAngle:135,
     vignetteColor:'#000000', vignetteStrength:0, backgroundBlur:0};
   const params = copy(defaults);
@@ -89,7 +89,7 @@
     const style = document.documentElement.style;
     const color = (value,fallback) => /^#[0-9a-f]{6}$/i.test(value) ? value : fallback;
     const number = (value,min,max,fallback) => Number.isFinite(+value) ? Math.min(max,Math.max(min,+value)) : fallback;
-    const font = fonts.includes(params.font) ? params.font : 'Arial';
+    const font = fonts.includes(params.font) ? params.font : 'PT Mono';
     style.setProperty('--reading-font', '"'+font+'"');
     style.setProperty('--reading-size', number(params.size,12,72,18)+'px');
     style.setProperty('--text-color',color(params.textColor,'#111111'));
@@ -121,7 +121,7 @@
     storageKey:key, params, defaults,
     defs:[
       ['h','Шрифт'],
-      ['font','Гарнитура · 40 шрифтов','select',fonts.map(font=>[font,font])],
+      ['font','Гарнитура','select',fonts.map(font=>[font,font])],
       ['size','Кегль, px',12,72,1],
       ['h','Цвет'],
       ['textColor','Текст','color'],
