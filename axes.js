@@ -6,12 +6,12 @@
   const fonts = ["PT Mono"];
   const defaults = {
     body: {uzly: [
-      {x:-0.0074,y:0.9369,r:0.37,z:'ugol',ho:{x:0.4559,y:-0.265},hi:{x:-0.191,y:0.111}},
-      {x:0,y:0,r:0.37,z:'net',hi:{x:0.4698,y:0.3197},ho:{x:-0.0012,y:-0.0902}}
+      {x:-0.912,y:0.1987,r:0,z:'net'},
+      {x:1.2823,y:0.846,r:0,z:'ugoldlina'}
     ],zamknut:false},
     headings: {uzly: [
-      {x:0.9971,y:0.0188,r:0.94,z:'net',ho:{x:-0.9743,y:0.3631},hi:{x:-0.9885,y:0.3565}},
-      {x:0.9983,y:0.9952,r:0,z:'net',ho:{x:-0.984,y:-0.3014},hi:{x:-1.0123,y:-0.3012}}
+      {x:-0.058,y:0.0784,r:0.94,z:'net',ho:{x:1.0046,y:0.3882},hi:{x:0.9963,y:0.3916}},
+      {x:-0.0137,y:0.9817,r:0,z:'net',ho:{x:1.0598,y:-0.5761},hi:{x:1.0483,y:-0.5785}}
     ],zamknut:true},
     guides:true, font:'PT Mono', size:18, textColor:'#ffffff', backgroundColor:'#2b2b2b',
     gradient:true, gradientStart:'#b78255', gradientEnd:'#366792', gradientAngle:214,
